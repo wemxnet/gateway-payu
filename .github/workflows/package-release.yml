@@ -1,0 +1,51 @@
+name: Package release
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, for example 1.0.0
+        required: true
+
+jobs:
+  package:
+    name: Attach PayU.zip
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.sha }}
+
+      - name: Package files into a PayU folder
+        run: |
+          mkdir -p build/PayU
+          rsync -a \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="build" \
+            --exclude=".DS_Store" \
+            ./ build/PayU/
+          (
+            cd build
+            zip -r PayU.zip PayU
+          )
+          unzip -l build/PayU.zip
+
+      - name: Upload zip to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name || inputs.version || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ github.event.release.name || inputs.version || github.ref_name }}
+          files: build/PayU.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
